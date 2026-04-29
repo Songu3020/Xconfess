@@ -146,11 +146,17 @@ export class TransactionBuilderService {
       const withResponse = error as {
         response?: { data?: { extras?: { result_codes?: unknown } } };
       };
-      if (withResponse.response?.data?.extras?.result_codes) {
-        const codes = withResponse.response.data.extras.result_codes;
-        throw new Error(`Transaction failed: ${JSON.stringify(codes)}`);
+      const wrappedError = new Error(
+        withResponse.response?.data?.extras?.result_codes
+          ? `Transaction failed: ${JSON.stringify(
+              withResponse.response.data.extras.result_codes,
+            )}`
+          : `Transaction submission failed: ${message}`,
+      );
+      if (withResponse.response !== undefined) {
+        (wrappedError as any).response = withResponse.response;
       }
-      throw new Error(`Transaction submission failed: ${message}`);
+      throw wrappedError;
     }
   }
 }

@@ -8,6 +8,7 @@ import { TransactionBuilderService } from '../transaction-builder.service';
 import {
   StellarTimeoutError,
   StellarMalformedTransactionError,
+  SorobanContractError,
 } from '../utils/stellar-error.handler';
 import { InvokeContractDto } from '../dto/invoke-contract.dto';
 import * as encoder from '../utils/parameter.encoder';
@@ -307,6 +308,50 @@ describe('ContractService', () => {
           VALID_SIGNER_SECRET,
         ),
       ).rejects.toThrow(StellarMalformedTransactionError);
+    });
+
+    it('should throw SorobanContractError with stable contract failure metadata', async () => {
+      jest
+        .spyOn(StellarSDK.Contract.prototype, 'call')
+        .mockReturnValue(MOCK_OPERATION);
+      jest
+        .spyOn(txBuilderService, 'buildTransaction')
+        .mockResolvedValue({} as any);
+      jest
+        .spyOn(txBuilderService, 'signTransaction')
+        .mockReturnValue({} as any);
+
+      const failure = new Error(
+        'Transaction failed: {"transaction":"tx_failed","operations":["op_failed"]}',
+      );
+      (failure as any).response = {
+        data: {
+          extras: {
+            result_codes: {
+              transaction: 'tx_failed',
+              operations: ['op_failed'],
+            },
+          },
+        },
+      };
+
+      jest.spyOn(txBuilderService, 'submitTransaction').mockRejectedValue(failure);
+
+      const thrown = await service.invokeContract(
+        {
+          contractId: VALID_CONTRACT_ID,
+          functionName: 'test',
+          args: [],
+          sourceAccount: VALID_SOURCE_ACCOUNT,
+        },
+        VALID_SIGNER_SECRET,
+      ).catch((err) => err);
+
+      expect(thrown).toBeInstanceOf(SorobanContractError);
+      const response = (thrown as any).getResponse?.();
+      expect(response).toEqual(
+        expect.objectContaining({ code: 'CONTRACT_EXECUTION_FAILED' }),
+      );
     });
 
     it('wraps generic errors via handleStellarError', async () => {

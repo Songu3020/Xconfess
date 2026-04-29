@@ -18,6 +18,8 @@ export class HttpExceptionFilter implements ExceptionFilter {
 
     let message = 'An unexpected error occurred';
     let code = this.getErrorCode(status);
+    let contractErrorCode: number | string | undefined;
+    let contractErrorDetails: string | undefined;
 
     if (typeof exceptionResponse === 'string') {
       message = exceptionResponse;
@@ -37,15 +39,33 @@ export class HttpExceptionFilter implements ExceptionFilter {
       if (resObj.code) {
         code = resObj.code;
       }
+
+      if (resObj.contractErrorCode !== undefined) {
+        contractErrorCode = resObj.contractErrorCode;
+      }
+
+      if (resObj.contractErrorDetails) {
+        contractErrorDetails = resObj.contractErrorDetails;
+      }
     }
 
-    response.status(status).json({
+    const payload: Record<string, unknown> = {
       status,
       message,
       code,
       timestamp: new Date().toISOString(),
       requestId: (request as any).requestId || 'unknown',
-    });
+    };
+
+    if (contractErrorCode !== undefined) {
+      payload.contractErrorCode = contractErrorCode;
+    }
+
+    if (contractErrorDetails) {
+      payload.contractErrorDetails = contractErrorDetails;
+    }
+
+    response.status(status).json(payload);
   }
 
   private getErrorCode(status: number): string {
